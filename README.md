@@ -5,8 +5,8 @@
 Zero dependencies. Node 16+. Exit code `0` / `1`, so it works as a CI gate.
 
 ```bash
-npx local-guard --target dist            # public build: declared exceptions allowed
-npx local-guard --target dist --strict   # sold/offline deliverable: zero tolerance
+npx @forges/local-guard --target dist            # public build: declared exceptions allowed
+npx @forges/local-guard --target dist --strict   # sold/offline deliverable: zero tolerance
 ```
 
 ---
