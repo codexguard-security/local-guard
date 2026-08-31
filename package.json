@@ -1,0 +1,18 @@
+{
+  "name": "local-guard",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Verify that a built web artifact cannot send user data anywhere — across every shipped file, not just the entry point.",
+  "keywords": ["local-first", "privacy", "exfiltration", "csp", "audit", "ci", "offline"],
+  "license": "Apache-2.0",
+  "author": "Forges Emmanuel <admin@origguard.com> (https://origguard.com)",
+  "homepage": "https://github.com/origguard/local-guard",
+  "repository": { "type": "git", "url": "git+https://github.com/origguard/local-guard.git" },
+  "bugs": { "url": "https://github.com/origguard/local-guard/issues" },
+  "bin": { "local-guard": "src/local-guard.mjs" },
+  "main": "src/local-guard.mjs",
+  "files": ["src", "README.md", "NOTICE", "LICENSE"],
+  "engines": { "node": ">=16" },
+  "scripts": { "test": "node test/local-guard.test.mjs" },
+  "dependencies": {}
+}
