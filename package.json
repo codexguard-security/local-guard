@@ -1,5 +1,5 @@
 ﻿{
-  "name": "@origguard/local-guard",
+  "name": "@origguard-web/local-guard",
   "version": "1.0.0",
   "type": "module",
   "description": "Verify that a built web artifact cannot send user data anywhere — across every shipped file, not just the entry point.",
