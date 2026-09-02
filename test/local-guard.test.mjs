@@ -86,6 +86,30 @@ console.log("\n=== Declared exceptions, and --strict ===");
   await fs.rm(d2, { recursive: true, force: true });
 }
 
+
+console.log("\n=== Call targets are classified, not lumped together ===");
+{
+  const d = await project({
+    "index.html": "<html></html>",
+    "app.js": [
+      'fetch("http://localhost:8080/api/status");',
+      'fetch("/api/local");',
+      'fetch(userSuppliedUrl);',
+      'fetch("https://third-party.example/collect");',
+    ].join("\n"),
+  });
+  const r = run(d, "--quiet");
+  ok("loopback literal is not reported by default", !/localhost:8080/.test(r.out), r.out);
+  ok("third-party target is named", /third-party.example/.test(r.out));
+  ok("same-origin is reported with its own reason", /same-origin/.test(r.out));
+  ok("runtime-computed target is reported as indeterminate", /computed at runtime/.test(r.out));
+  ok("still a failure overall", r.code === 1);
+
+  const strict = run(d, "--strict", "--quiet");
+  ok("--strict includes the loopback call", /localhost:8080/.test(strict.out), strict.out);
+  await fs.rm(d, { recursive: true, force: true });
+}
+
 console.log("\n=== Empty target ===");
 {
   const d = await project({ "readme.txt": "no shipped files here" });

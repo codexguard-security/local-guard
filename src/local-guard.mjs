@@ -27,6 +27,33 @@ const QUIET = args.includes("--quiet");
 
 const C = { g: "\x1b[32m", y: "\x1b[33m", r: "\x1b[31m", d: "\x1b[2m", b: "\x1b[1m", x: "\x1b[0m" };
 
+/**
+ * Classify a call site by its first string-literal argument.
+ *
+ * A scanner that treats fetch("http://localhost:8080") and
+ * fetch("https://third-party.example/collect") identically is not telling the
+ * truth about either. Same-origin is NOT harmless here — the origin is a
+ * server, and this tool verifies that nothing reaches one — but it is a
+ * different fact and it gets a different sentence.
+ */
+function classifyTarget(line, index) {
+  const after = line.slice(index, index + 240);
+  const lit = after.match(/\(\s*(["'`])([^"'`]*)\1/);
+  if (!lit) return { kind: "indeterminate", target: null };
+  const t = lit[2];
+  if (/^(https?|wss?):\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(t)) return { kind: "localhost", target: t };
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(t)) return { kind: "remote", target: t };
+  if (/^(\/|\.\.?\/)/.test(t) || t === "") return { kind: "same-origin", target: t };
+  return { kind: "same-origin", target: t };
+}
+
+const KIND_NOTE = {
+  remote:        "sends to a third-party origin",
+  "same-origin": "same-origin — still leaves the device: the origin is a server",
+  localhost:     "loopback only — never leaves the machine",
+  indeterminate: "target is computed at runtime and cannot be determined statically",
+};
+
 // Every mechanism that can move data off the device, or pull a resource from a third party.
 const RULES = [
   { id: "fetch",       re: /\bfetch\s*\(/g,                              why: "network request" },
@@ -70,8 +97,10 @@ const files = [];
 })(TARGET);
 
 // ---------- scan ----------
+const CALL_RULES = new Set(["fetch", "xhr", "beacon", "websocket", "eventsource", "dyn-import"]);
 const findings = [];
 let allowedCount = 0;
+let localhostCount = 0;
 for (const f of files) {
   let src = "";
   try { src = fs.readFileSync(f, "utf8"); } catch { continue; }
@@ -85,11 +114,19 @@ for (const f of files) {
       for (const m of matches) {
         const around = line.slice(Math.max(0, m.index - 60), m.index + 120);
         if (isAllowed(around)) { allowedCount++; continue; }
+        const cls = CALL_RULES.has(rule.id)
+          ? classifyTarget(line, m.index + (m[0] || "").length - 1)
+          : { kind: "remote", target: null };
+        // A loopback literal never leaves the machine. Reported for information,
+        // and only failing under --strict, where zero requests are promised.
+        if (cls.kind === "localhost" && !STRICT) { localhostCount++; continue; }
         findings.push({
           file: path.relative(TARGET, f) || path.basename(f),
           line: i + 1,
           id: rule.id,
           why: rule.why,
+          kind: cls.kind,
+          target: cls.target,
           snippet: (m[0] || line.trim()).slice(0, 90),
         });
       }
@@ -116,7 +153,8 @@ if (findings.length) {
   for (const [file, list] of Object.entries(byFile)) {
     console.log(`  ${C.r}✗${C.x} ${C.b}${file}${C.x}`);
     for (const f of list) {
-      console.log(`      ${C.r}${f.id}${C.x} ${C.d}line ${f.line} — ${f.why}${C.x}`);
+      const note = KIND_NOTE[f.kind] || f.why;
+      console.log(`      ${C.r}${f.id}${C.x} ${C.d}line ${f.line} — ${note}${f.target ? ` → ${f.target}` : ""}${C.x}`);
       if (!QUIET) console.log(`      ${C.d}${f.snippet}${C.x}`);
     }
   }
@@ -130,6 +168,7 @@ if (findings.length) {
 }
 
 console.log(`  ${C.g}✓ No undeclared outbound mechanism in any shipped file.${C.x}`);
+if (localhostCount) console.log(`  ${C.d}${localhostCount} loopback call(s) ignored — they never leave the machine. Use --strict to include them.${C.x}`);
 if (allowedCount) console.log(`  ${C.d}${allowedCount} declared exception(s) allowed — name them in your promise before a user finds them.${C.x}`);
 console.log(
   STRICT
